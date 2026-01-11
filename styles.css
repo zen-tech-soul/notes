@@ -1,4 +1,4 @@
-/* TopicsLog v3 Dark — clean professional */
+/* TopicsLog v3 Dark — clean professional (FULL) */
 :root{
   --bg:#0b0f14;
   --panel:rgba(255,255,255,.04);
@@ -92,6 +92,7 @@ input:focus,select:focus{
 .btn.primary{background:rgba(106,169,255,.18); border-color:rgba(106,169,255,.30)}
 .btn.primary:hover{background:rgba(106,169,255,.24); border-color:rgba(106,169,255,.42)}
 .btn.ghost{background:rgba(255,255,255,.04)}
+.btn:disabled{opacity:.55; cursor:not-allowed}
 
 .badge{
   padding:6px 10px;
@@ -143,6 +144,7 @@ input:focus,select:focus{
   margin-top:12px;
 }
 .rowsBox{margin-top:12px; display:grid; gap:12px}
+
 .tableWrap{overflow:auto; border-radius:var(--r); border:1px solid rgba(255,255,255,.10)}
 table{width:100%; border-collapse:collapse; min-width:720px}
 th,td{padding:10px 10px; border-bottom:1px solid rgba(255,255,255,.08); vertical-align:top}
@@ -180,6 +182,7 @@ th{
 .kv{display:grid; grid-template-columns:180px 1fr; gap:10px 14px}
 .k{color:var(--muted); font-size:12px}
 
+/* MODAL */
 .modalHost{
   position:fixed; inset:0;
   display:grid; place-items:center;
@@ -202,9 +205,13 @@ th{
   padding:12px 14px;
   border-bottom:1px solid rgba(255,255,255,.10);
   background:rgba(17,23,31,.96);
+  z-index:10;
 }
 .modalTitle{font-weight:800; letter-spacing:.2px}
-.modalBody{padding:14px}
+.modalBody{
+  padding:14px;
+  position:relative; /* important for z-index fixes */
+}
 
 .msg{margin:10px 0 0 0; font-size:13px; color:var(--danger); min-height:18px}
 .foot{margin-top:14px}
@@ -229,20 +236,21 @@ th{
 .ql-snow .ql-fill{fill:rgba(231,238,247,.75)!important}
 .ql-snow .ql-picker{color:rgba(231,238,247,.85)!important}
 
-/* --- IMPORTANT FIX: Create row button not clickable (Quill overlay) --- */
-.modalBody{ position: relative; }
-
-/* Footer stays above editor and remains clickable */
+/* ✅ FIX: Quill overlay blocking Create button */
 .modalFooter{
   position: sticky;
   bottom: 0;
-  z-index: 9999;
+  z-index: 99999;
   background: rgba(17,23,31,.96);
   padding-top: 12px;
   margin-top: 10px;
+  pointer-events: auto;
 }
-
-/* Prevent editor from covering footer */
+#rNotes{position:relative; z-index:1;}
+#rNotes .ql-toolbar, #rNotes .ql-container{
+  position:relative;
+  z-index:1;
+}
 #rNotes .ql-container{
   max-height: 220px;
   overflow: auto;
