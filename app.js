@@ -13,14 +13,17 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 /**
- * TopicsLog (Dark) — GitHub Pages + Firebase (notes-zen)
- * - UI uses UserID + Password (no email/phone shown)
- * - Internally uses Firebase Auth Email/Password alias: <userId>@topicslog.local
- * - Firestore: topics + rows
- * - Share by User ID (via /userIndex/<userIdLower>)
+ * Notes / TopicsLog v3 (Dark) — GitHub Pages + Firebase
+ * - UI: UserID + Password (no email/phone shown)
+ * - Internally: Firebase Email/Password uses alias <userId>@topicslog.local
+ * - Firestore:
+ *    topics/{topicId}
+ *    topics/{topicId}/rows/{rowId}
+ *    users/{uid}
+ *    userIndex/{userIdLower} -> { uid, userId }
  */
 
-// ------------------ Helpers ------------------
+// -------------------- Helpers --------------------
 const $ = (id) => document.getElementById(id);
 
 function toast(el, msg, ok = false) {
@@ -83,7 +86,7 @@ function download(filename, text) {
   URL.revokeObjectURL(url);
 }
 
-// ------------------ DOM ------------------
+// -------------------- DOM --------------------
 const authView = $("authView");
 const appView = $("appView");
 
@@ -126,7 +129,7 @@ const modalTitle = $("modalTitle");
 const modalBody = $("modalBody");
 const modalCloseBtn = $("modalCloseBtn");
 
-// ------------------ Modal ------------------
+// -------------------- Modal --------------------
 function openModal(title, bodyEl) {
   modalTitle.textContent = title;
   modalBody.innerHTML = "";
@@ -143,9 +146,11 @@ function closeModal() {
 
 modalCloseBtn?.addEventListener("click", closeModal);
 modalHost?.addEventListener("click", (e) => { if (e.target === modalHost) closeModal(); });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !modalHost.classList.contains("hidden")) closeModal(); });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !modalHost.classList.contains("hidden")) closeModal();
+});
 
-// ------------------ Online badge ------------------
+// -------------------- Online badge --------------------
 function updateOnlineUI() {
   if (!netBadge) return;
   const online = navigator.onLine;
@@ -156,7 +161,7 @@ window.addEventListener("online", updateOnlineUI);
 window.addEventListener("offline", updateOnlineUI);
 updateOnlineUI();
 
-// ------------------ State ------------------
+// -------------------- State --------------------
 const state = {
   user: null,
   userId: "",
@@ -168,14 +173,14 @@ const state = {
   unsubRows: null
 };
 
-// ------------------ Firestore refs ------------------
+// -------------------- Firestore refs --------------------
 const topicsCol = () => collection(db, "topics");
 const topicDoc = (id) => doc(db, "topics", id);
 const rowsCol = (topicId) => collection(db, "topics", topicId, "rows");
 const userDoc = (uid) => doc(db, "users", uid);
 const userIndexDoc = (userIdLower) => doc(db, "userIndex", userIdLower);
 
-// ------------------ Auth ------------------
+// -------------------- Auth actions --------------------
 loginBtn?.addEventListener("click", async () => {
   toast(authMsg, "");
   const uid = (userIdEl?.value || "").trim();
@@ -183,7 +188,7 @@ loginBtn?.addEventListener("click", async () => {
   try {
     await signInWithEmailAndPassword(auth, userIdToEmail(uid), passEl.value);
   } catch (e) {
-    toast(authMsg, e.message);
+    toast(authMsg, e.message || "Login failed.");
   }
 });
 
@@ -195,18 +200,31 @@ signupBtn?.addEventListener("click", async () => {
 
   try {
     const cred = await createUserWithEmailAndPassword(auth, userIdToEmail(uid), passEl.value);
-    await setDoc(userDoc(cred.user.uid), { userId: uid, createdAt: nowTs(), updatedAt: nowTs() }, { merge: true });
-    await setDoc(userIndexDoc(uid.toLowerCase()), { uid: cred.user.uid, userId: uid, createdAt: nowTs() });
-    toast(authMsg, "Account created. Now login.", true);
+
+    await setDoc(userDoc(cred.user.uid), {
+      userId: uid,
+      createdAt: nowTs(),
+      updatedAt: nowTs()
+    }, { merge: true });
+
+    // This mapping is REQUIRED for sharing by UserID
+    await setDoc(userIndexDoc(uid.toLowerCase()), {
+      uid: cred.user.uid,
+      userId: uid,
+      createdAt: nowTs()
+    });
+
+    toast(authMsg, "Account created ✅ Now login.", true);
   } catch (e) {
-    if ((e.message || "").includes("email-already-in-use")) toast(authMsg, "This User ID is already taken.");
-    else toast(authMsg, e.message);
+    const m = e?.message || "";
+    if (m.includes("email-already-in-use")) toast(authMsg, "This User ID is already taken.");
+    else toast(authMsg, m || "Signup failed.");
   }
 });
 
 logoutBtn?.addEventListener("click", () => signOut(auth));
 
-// ------------------ Auth state ------------------
+// -------------------- Auth state --------------------
 onAuthStateChanged(auth, async (user) => {
   state.user = user || null;
 
@@ -220,13 +238,15 @@ onAuthStateChanged(auth, async (user) => {
   authView?.classList.add("hidden");
   appView?.classList.remove("hidden");
 
+  // Load userId
   const snap = await getDoc(userDoc(user.uid));
   state.userId = snap.exists() ? (snap.data().userId || "") : "";
 
   if (welcomeText) welcomeText.textContent = "WELCOME";
   if (whoText) whoText.textContent = state.userId ? `User ID: ${state.userId}` : (user.email || "");
 
-  await setDoc(userDoc(user.uid), { userId: state.userId || "", updatedAt: nowTs() }, { merge: true });
+  // Ensure /users exists
+  await setDoc(userDoc(user.uid), { updatedAt: nowTs() }, { merge: true });
 
   showTopics();
   startTopicsListener();
@@ -244,7 +264,7 @@ function cleanupListeners() {
   if (rowsBox) rowsBox.innerHTML = "";
 }
 
-// ------------------ Navigation ------------------
+// -------------------- Navigation --------------------
 function showTopics() {
   topicsPage?.classList.remove("hidden");
   topicPage?.classList.add("hidden");
@@ -255,7 +275,7 @@ function showTopic() {
   topicPage?.classList.remove("hidden");
 }
 
-// ------------------ Topics ------------------
+// -------------------- Topics --------------------
 topicSearch?.addEventListener("input", renderTopics);
 topicFilter?.addEventListener("change", renderTopics);
 newTopicBtn?.addEventListener("click", openCreateTopicModal);
@@ -264,18 +284,23 @@ function startTopicsListener() {
   if (state.unsubTopics) state.unsubTopics();
   if (syncPill) syncPill.textContent = "Syncing…";
 
+  // IMPORTANT: show topics by access (allowedUids), not only by ownerUid
+  // No composite index required because we sort locally.
   const qTopics = query(
     topicsCol(),
-    where("allowedUids", "array-contains", state.user.uid),
-    orderBy("updatedAt", "desc")
+    where("allowedUids", "array-contains", state.user.uid)
   );
 
   state.unsubTopics = onSnapshot(qTopics, (snap) => {
-    state.topics = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    state.topics = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
+
     if (syncPill) syncPill.textContent = navigator.onLine ? "Synced" : "Offline cache";
     renderTopics();
   }, () => {
     if (syncPill) syncPill.textContent = "Offline cache";
+    renderTopics();
   });
 }
 
@@ -304,7 +329,7 @@ function renderTopics() {
     el.className = "topicCard";
     el.innerHTML = `
       <div class="topicMeta">
-        <div class="topicName">${esc(t.name)}</div>
+        <div class="topicName">${esc(t.name || "")}</div>
         <div class="chipRow">
           <span class="chip ${owned ? "ok" : "warn"}">${owned ? "Owned" : "Shared"}</span>
           <span class="chip">${(t.columns || []).length} cols</span>
@@ -337,7 +362,8 @@ function openCreateTopicModal() {
       <div class="label">Topic name</div>
       <input id="tName" placeholder="e.g., Journal, Work Log, To-Do" />
     </div>
-    <div class="muted small">Columns (default): Date, Title, Notes</div>
+
+    <div class="muted small">Default columns: Date, Title, Notes</div>
 
     <div class="modalFooter row between">
       <button id="createBtn" class="btn primary">Create</button>
@@ -358,8 +384,8 @@ function openCreateTopicModal() {
     if (!name) return toast(mMsg, "Enter topic name.");
 
     const columns = [
-      { id: "date", name: "Date", type: "date", required: true },
-      { id: "title", name: "Title", type: "text", required: true },
+      { id: "date",  name: "Date",  type: "date",     required: true },
+      { id: "title", name: "Title", type: "text",     required: true },
       { id: "notes", name: "Notes", type: "richtext", required: false }
     ];
 
@@ -376,14 +402,14 @@ function openCreateTopicModal() {
       });
       closeModal();
     } catch (e) {
-      toast(mMsg, e.message);
+      toast(mMsg, e.message || "Create topic failed.");
     }
   });
 
   openModal("New Topic", body);
 }
 
-// ------------------ Topic detail + rows ------------------
+// -------------------- Topic detail & rows --------------------
 backBtn?.addEventListener("click", () => {
   stopRowsListener();
   showTopics();
@@ -407,8 +433,10 @@ async function openTopic(topicId) {
   if (!snap.exists()) return;
 
   state.currentTopic = { id: snap.id, ...snap.data() };
-  if (topicTitle) topicTitle.textContent = state.currentTopic.name;
-  if (topicSub) topicSub.textContent = state.currentTopic.ownerUid === state.user.uid ? "Owner: you" : "Shared topic";
+
+  if (topicTitle) topicTitle.textContent = state.currentTopic.name || "Topic";
+  if (topicSub) topicSub.textContent =
+    state.currentTopic.ownerUid === state.user.uid ? "Owner: you" : "Shared topic";
 
   if (rowSearch) rowSearch.value = "";
   if (sortSelect) sortSelect.value = "updated_desc";
@@ -524,6 +552,7 @@ function renderRows() {
           <button class="btn ghost delBtn">Delete</button>
         </div>
       </div>
+
       <div class="kv">
         <div class="k">Date</div><div class="v">${esc(v.date || "")}</div>
         <div class="k">Title</div><div class="v"><b>${esc(v.title || "")}</b></div>
@@ -577,7 +606,12 @@ function openRowModal(row) {
   const q = new Quill(notesEl, {
     theme: "snow",
     modules: {
-      toolbar: [["bold", "italic", "underline"], [{ list: "ordered" }, { list: "bullet" }], ["link"], ["clean"]]
+      toolbar: [
+        ["bold", "italic", "underline"],
+        [{ list: "ordered" }, { list: "bullet" }],
+        ["link"],
+        ["clean"]
+      ]
     }
   });
 
@@ -627,12 +661,12 @@ function openRowModal(row) {
         });
       }
 
-      // nice-to-have: don't block if it fails
+      // nice-to-have: do not block UI if updateDoc fails
       updateDoc(topicDoc(t.id), { updatedAt: nowTs() }).catch(() => {});
 
       closeModal();
     } catch (e) {
-      toast(mMsg, e.message);
+      toast(mMsg, e.message || "Save failed.");
       btn.disabled = false;
       btn.textContent = isEdit ? "Save changes" : "Create row";
     }
@@ -651,49 +685,49 @@ async function deleteRow(row) {
     await deleteDoc(doc(db, "topics", t.id, "rows", row.id));
     updateDoc(topicDoc(t.id), { updatedAt: nowTs() }).catch(() => {});
   } catch (e) {
-    toast(rowsMsg, e.message);
+    toast(rowsMsg, e.message || "Delete failed.");
   }
 }
 
-// ------------------ Sharing (simple UI) ------------------
+// -------------------- Sharing (OWNER only) --------------------
 async function openShareModal() {
   const t = state.currentTopic;
   if (!t) return;
 
-  if (t.ownerUid !== state.user.uid) {
-    const b = document.createElement("div");
-    b.innerHTML = `<div class="muted">Only the topic owner can manage sharing.</div>`;
-    return openModal("Share", b);
-  }
-
   const body = document.createElement("div");
   body.className = "grid";
   body.innerHTML = `
-    <div class="muted small">Share by <b>User ID</b>. The other user must have created an account.</div>
+    <div class="muted small">
+      Share by <b>User ID</b>. The other user must have created account + logged in once.
+    </div>
+
     <div class="row wrap">
-      <input id="shUserId" placeholder="User ID (example: ramesh01)" />
-      <select id="shRole" class="select" style="width:180px">
+      <input id="shUserId" placeholder="User ID (example: friend01)" />
+      <select id="shRole" style="width:180px">
         <option value="edit">Edit</option>
         <option value="read">Read-only</option>
       </select>
       <button id="shAdd" class="btn primary">Share</button>
     </div>
+
     <div>
       <div class="h2" style="margin-top:6px;">Shared with</div>
       <div id="shList" class="list"></div>
     </div>
+
     <p id="shMsg" class="msg"></p>
   `;
 
   const shUserId = body.querySelector("#shUserId");
   const shRole = body.querySelector("#shRole");
+  const shAdd = body.querySelector("#shAdd");
   const shList = body.querySelector("#shList");
   const shMsg = body.querySelector("#shMsg");
 
   function renderList() {
     shList.innerHTML = "";
     const shares = t.sharedWith || [];
-    if (shares.length === 0) {
+    if (!shares.length) {
       shList.innerHTML = `<div class="muted">No shares yet.</div>`;
       return;
     }
@@ -705,31 +739,41 @@ async function openShareModal() {
         <div class="topicMeta">
           <div class="topicName">${esc(s.userId || "")}</div>
           <div class="chipRow"><span class="chip">${esc(s.role || "edit")}</span></div>
+          <div class="muted small">${esc(s.uid || "")}</div>
+        </div>
+        <div class="row wrap">
+          <button class="btn ghost rmBtn">Remove</button>
         </div>
       `;
+      item.querySelector(".rmBtn").addEventListener("click", async () => {
+        try {
+          await removeShareByUserId(s.userId);
+          toast(shMsg, "Removed ✅", true);
+        } catch (e) {
+          toast(shMsg, e.message || "Remove failed.");
+        }
+      });
       shList.appendChild(item);
     }
   }
 
-  body.querySelector("#shAdd").addEventListener("click", async () => {
-    toast(shMsg, "");
-    const userId = shUserId.value.trim();
-    if (!userId) return toast(shMsg, "Enter User ID.");
-    if (userId.toLowerCase() === (state.userId || "").toLowerCase()) return toast(shMsg, "You are the owner.");
+  async function refreshTopic() {
+    const snap = await getDoc(topicDoc(t.id));
+    if (!snap.exists()) return;
+    state.currentTopic = { id: snap.id, ...snap.data() };
+    Object.assign(t, state.currentTopic);
+  }
 
-    const key = userId.toLowerCase();
-    const idxSnap = await getDoc(userIndexDoc(key));
-    if (!idxSnap.exists()) return toast(shMsg, "User not found. Ask them to create an account first.");
+  async function removeShareByUserId(userId) {
+    if (t.ownerUid !== state.user.uid) throw new Error("Only owner can change sharing.");
 
-    const uid = idxSnap.data().uid;
-    const role = shRole.value;
+    const key = (userId || "").toLowerCase();
+    const nextShared = (t.sharedWith || []).filter(x => (x.userId || "").toLowerCase() !== key);
 
-    const exists = (t.sharedWith || []).some(x => (x.userId || "").toLowerCase() === key);
-    if (exists) return toast(shMsg, "Already shared with this user.");
+    const removed = (t.sharedWith || []).find(x => (x.userId || "").toLowerCase() === key);
 
-    const nextShared = [...(t.sharedWith || []), { userId, uid, role, sharedAt: nowTs() }];
     const allowed = new Set(t.allowedUids || []);
-    allowed.add(uid);
+    if (removed?.uid) allowed.delete(removed.uid);
     allowed.add(t.ownerUid);
 
     await updateDoc(topicDoc(t.id), {
@@ -738,20 +782,69 @@ async function openShareModal() {
       updatedAt: nowTs()
     });
 
-    const snap = await getDoc(topicDoc(t.id));
-    state.currentTopic = { id: snap.id, ...snap.data() };
-    Object.assign(t, state.currentTopic);
-
-    shUserId.value = "";
-    toast(shMsg, "Shared.", true);
+    await refreshTopic();
     renderList();
+  }
+
+  shAdd.addEventListener("click", async () => {
+    toast(shMsg, "");
+
+    // OWNER check
+    if (t.ownerUid !== state.user.uid) {
+      return toast(shMsg, "Share failed: you are not the owner of this topic.");
+    }
+
+    const userId = shUserId.value.trim();
+    if (!userId) return toast(shMsg, "Enter User ID.");
+
+    const key = userId.toLowerCase();
+
+    // Find other user's UID from userIndex
+    const idxSnap = await getDoc(userIndexDoc(key));
+    if (!idxSnap.exists()) {
+      return toast(shMsg, "User not found. Ask them to create account + login once.");
+    }
+
+    const otherUid = idxSnap.data().uid;
+    if (!otherUid) return toast(shMsg, "userIndex exists but uid field missing.");
+
+    const exists = (t.sharedWith || []).some(x => (x.userId || "").toLowerCase() === key);
+    if (exists) return toast(shMsg, "Already shared with this user.");
+
+    const role = shRole.value;
+
+    const nextShared = [...(t.sharedWith || []), { userId, uid: otherUid, role, sharedAt: nowTs() }];
+    const allowed = new Set(t.allowedUids || []);
+    allowed.add(otherUid);
+    allowed.add(t.ownerUid);
+
+    shAdd.disabled = true;
+    shAdd.textContent = "Sharing…";
+
+    try {
+      await updateDoc(topicDoc(t.id), {
+        sharedWith: nextShared,
+        allowedUids: Array.from(allowed),
+        updatedAt: nowTs()
+      });
+
+      await refreshTopic();
+      toast(shMsg, "Shared successfully ✅", true);
+      shUserId.value = "";
+      renderList();
+    } catch (e) {
+      toast(shMsg, e.message || "Share failed.");
+    } finally {
+      shAdd.disabled = false;
+      shAdd.textContent = "Share";
+    }
   });
 
   renderList();
   openModal("Share Topic", body);
 }
 
-// ------------------ Export ------------------
+// -------------------- Export --------------------
 function exportCurrentCSV() {
   toast(rowsMsg, "");
   const t = state.currentTopic;
@@ -769,13 +862,13 @@ function exportCurrentCSV() {
   });
 
   const headers = ["Date", "Title", "Notes", "CreatedAt", "UpdatedAt"];
-  download(`${t.name}.csv`, toCSV(rows, headers));
-  toast(rowsMsg, "Exported CSV.", true);
+  download(`${t.name || "notes"}.csv`, toCSV(rows, headers));
+  toast(rowsMsg, "Exported CSV ✅", true);
 }
 
-// ------------------ PWA ------------------
+// -------------------- PWA --------------------
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch(() => { });
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
   });
 }
