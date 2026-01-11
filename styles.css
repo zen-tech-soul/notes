@@ -211,3 +211,7 @@ th{text-align:left; font-size:12px; color:rgba(231,238,247,.78); background:rgba
 .ql-snow .ql-stroke{stroke:rgba(231,238,247,.75)!important}
 .ql-snow .ql-fill{fill:rgba(231,238,247,.75)!important}
 .ql-snow .ql-picker{color:rgba(231,238,247,.85)!important}
+/* Fix: ensure modal buttons stay above editor layers */
+.modalBody { position: relative; }
+.modal .btn, .modal .iconBtn { position: relative; z-index: 9999; }
+.ql-toolbar, .ql-container { position: relative; z-index: 1; }
