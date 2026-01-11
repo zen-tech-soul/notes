@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TopicsLog — Notes Zen (Dark)</title>
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0b0f14" />
+
+  <!-- Rich Text (Quill) -->
+  <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg"></div>
+
+  <!-- AUTH -->
+  <section id="authView" class="shell">
+    <div class="card authCard">
+      <div class="brandRow">
+        <div class="logo">TL</div>
+        <div>
+          <div class="brand">TopicsLog</div>
+          <div class="muted small">User ID + Password • GitHub Pages • Firebase</div>
+        </div>
+      </div>
+
+      <h1 class="h1">Sign in</h1>
+      <div class="grid">
+        <input id="userId" type="text" placeholder="User ID" autocomplete="username" />
+        <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
+        <button id="loginBtn" class="btn primary">Login</button>
+        <button id="signupBtn" class="btn ghost">Create account</button>
+      </div>
+
+      <div class="row between" style="margin-top:10px;">
+        <span class="muted small">No email/phone asked in UI.</span>
+        <span id="netBadge" class="badge">Online</span>
+      </div>
+
+      <p id="authMsg" class="msg"></p>
+
+      <div class="foot muted small">
+        Storage/Attachments disabled (no billing needed).
+      </div>
+    </div>
+  </section>
+
+  <!-- APP -->
+  <section id="appView" class="hidden">
+    <header class="topbar">
+      <div class="topTitle">
+        <div class="welcome" id="welcomeText">WELCOME</div>
+        <div class="muted small" id="whoText"></div>
+      </div>
+      <div class="topActions">
+        <div id="syncPill" class="pill">Synced</div>
+        <button id="logoutBtn" class="btn ghost">Logout</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <!-- TOPICS -->
+      <section id="topicsPage" class="page">
+        <div class="card">
+          <div class="row between">
+            <div>
+              <div class="h2">Topics</div>
+              <div class="muted small">Create topics • Add rows • Rich text • Share by User ID</div>
+            </div>
+            <button id="newTopicBtn" class="btn primary">+ New Topic</button>
+          </div>
+
+          <div class="row wrap" style="margin-top:12px;">
+            <input id="topicSearch" class="search" placeholder="Search topics…" />
+            <select id="topicFilter" class="select">
+              <option value="all">All</option>
+              <option value="owned">Owned</option>
+              <option value="shared">Shared</option>
+            </select>
+          </div>
+
+          <div id="topicsList" class="list"></div>
+          <p id="topicsMsg" class="msg"></p>
+        </div>
+      </section>
+
+      <!-- TOPIC DETAIL -->
+      <section id="topicPage" class="page hidden">
+        <div class="card">
+          <div class="row between">
+            <div>
+              <div class="h2" id="topicTitle">Topic</div>
+              <div class="muted small" id="topicSub">—</div>
+            </div>
+            <div class="row wrap">
+              <button id="backBtn" class="btn ghost">← Topics</button>
+              <button id="shareBtn" class="btn ghost">Share</button>
+              <button id="exportBtn" class="btn ghost">Export CSV</button>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <button id="addRowBtn" class="btn primary">+ Add Row</button>
+            <input id="rowSearch" class="search" placeholder="Search rows…" />
+            <select id="sortSelect" class="select">
+              <option value="updated_desc">Sort: Recent</option>
+              <option value="date_desc">Sort: Date (desc)</option>
+              <option value="date_asc">Sort: Date (asc)</option>
+            </select>
+            <button id="viewToggleBtn" class="btn ghost">Card view</button>
+          </div>
+
+          <div id="rowsBox" class="rowsBox"></div>
+          <p id="rowsMsg" class="msg"></p>
+        </div>
+      </section>
+    </main>
+
+    <!-- MODAL -->
+    <div id="modalHost" class="modalHost hidden" aria-hidden="true">
+      <div class="modal">
+        <div class="modalHeader">
+          <div class="modalTitle" id="modalTitle">Modal</div>
+          <button id="modalCloseBtn" class="iconBtn" aria-label="Close">✕</button>
+        </div>
+        <div class="modalBody" id="modalBody"></div>
+      </div>
+    </div>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+  <script type="module" src="firebase.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
