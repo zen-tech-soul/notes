@@ -15,9 +15,9 @@ import {
 /**
  * TopicsLog (Dark) — GitHub Pages + Firebase (notes-zen)
  * - UI uses UserID + Password (no email/phone shown)
- * - Internally uses Firebase Auth Email/Password with alias: <userId>@topicslog.local
+ * - Internally uses Firebase Auth Email/Password alias: <userId>@topicslog.local
  * - Firestore: topics + rows
- * - Share by User ID (uses /userIndex/<userIdLower>)
+ * - Share by User ID (via /userIndex/<userIdLower>)
  */
 
 // ------------------ Helpers ------------------
@@ -145,10 +145,10 @@ modalCloseBtn?.addEventListener("click", closeModal);
 modalHost?.addEventListener("click", (e) => { if (e.target === modalHost) closeModal(); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !modalHost.classList.contains("hidden")) closeModal(); });
 
-// ------------------ Network badge ------------------
+// ------------------ Online badge ------------------
 function updateOnlineUI() {
-  const online = navigator.onLine;
   if (!netBadge) return;
+  const online = navigator.onLine;
   netBadge.textContent = online ? "Online" : "Offline";
   netBadge.style.color = online ? "var(--ok)" : "var(--warn)";
 }
@@ -175,7 +175,7 @@ const rowsCol = (topicId) => collection(db, "topics", topicId, "rows");
 const userDoc = (uid) => doc(db, "users", uid);
 const userIndexDoc = (userIdLower) => doc(db, "userIndex", userIdLower);
 
-// ------------------ Auth actions ------------------
+// ------------------ Auth ------------------
 loginBtn?.addEventListener("click", async () => {
   toast(authMsg, "");
   const uid = (userIdEl?.value || "").trim();
@@ -220,14 +220,12 @@ onAuthStateChanged(auth, async (user) => {
   authView?.classList.add("hidden");
   appView?.classList.remove("hidden");
 
-  // Load userId from users/{uid}
   const snap = await getDoc(userDoc(user.uid));
   state.userId = snap.exists() ? (snap.data().userId || "") : "";
 
   if (welcomeText) welcomeText.textContent = "WELCOME";
   if (whoText) whoText.textContent = state.userId ? `User ID: ${state.userId}` : (user.email || "");
 
-  // Ensure user doc exists
   await setDoc(userDoc(user.uid), { userId: state.userId || "", updatedAt: nowTs() }, { merge: true });
 
   showTopics();
@@ -264,7 +262,6 @@ newTopicBtn?.addEventListener("click", openCreateTopicModal);
 
 function startTopicsListener() {
   if (state.unsubTopics) state.unsubTopics();
-
   if (syncPill) syncPill.textContent = "Syncing…";
 
   const qTopics = query(
@@ -302,6 +299,7 @@ function renderTopics() {
 
   for (const t of list) {
     const owned = t.ownerUid === state.user.uid;
+
     const el = document.createElement("div");
     el.className = "topicCard";
     el.innerHTML = `
@@ -339,10 +337,8 @@ function openCreateTopicModal() {
       <div class="label">Topic name</div>
       <input id="tName" placeholder="e.g., Journal, Work Log, To-Do" />
     </div>
-
     <div class="muted small">Columns (default): Date, Title, Notes</div>
 
-    <!-- IMPORTANT: footer keeps buttons clickable -->
     <div class="modalFooter row between">
       <button id="createBtn" class="btn primary">Create</button>
       <button id="cancelBtn" class="btn ghost">Cancel</button>
@@ -355,6 +351,7 @@ function openCreateTopicModal() {
   const mMsg = body.querySelector("#mMsg");
 
   body.querySelector("#cancelBtn").addEventListener("click", closeModal);
+
   body.querySelector("#createBtn").addEventListener("click", async () => {
     toast(mMsg, "");
     const name = tName.value.trim();
@@ -386,15 +383,13 @@ function openCreateTopicModal() {
   openModal("New Topic", body);
 }
 
-// ------------------ Topic detail & rows ------------------
+// ------------------ Topic detail + rows ------------------
 backBtn?.addEventListener("click", () => {
   stopRowsListener();
   showTopics();
 });
 
-shareBtn?.addEventListener("click", openShareModal);
 addRowBtn?.addEventListener("click", () => openRowModal(null));
-
 rowSearch?.addEventListener("input", renderRows);
 sortSelect?.addEventListener("change", () => startRowsListener());
 
@@ -405,6 +400,7 @@ viewToggleBtn?.addEventListener("click", () => {
 });
 
 exportBtn?.addEventListener("click", exportCurrentCSV);
+shareBtn?.addEventListener("click", openShareModal);
 
 async function openTopic(topicId) {
   const snap = await getDoc(topicDoc(topicId));
@@ -528,7 +524,6 @@ function renderRows() {
           <button class="btn ghost delBtn">Delete</button>
         </div>
       </div>
-
       <div class="kv">
         <div class="k">Date</div><div class="v">${esc(v.date || "")}</div>
         <div class="k">Title</div><div class="v"><b>${esc(v.title || "")}</b></div>
@@ -565,7 +560,6 @@ function openRowModal(row) {
       <div id="rNotes"></div>
     </div>
 
-    <!-- IMPORTANT: footer keeps buttons clickable -->
     <div class="modalFooter row between">
       <button id="saveBtn" class="btn primary">${isEdit ? "Save changes" : "Create row"}</button>
       <button id="cancelBtn" class="btn ghost">Cancel</button>
@@ -610,7 +604,6 @@ function openRowModal(row) {
     const values = { date, title, notes };
     const sortDate = date;
 
-    // Prevent double-click creating duplicates
     const btn = body.querySelector("#saveBtn");
     btn.disabled = true;
     btn.textContent = isEdit ? "Saving…" : "Creating…";
@@ -634,8 +627,8 @@ function openRowModal(row) {
         });
       }
 
-      // Topic updatedAt is nice-to-have; don't block UI if it fails
-      updateDoc(topicDoc(t.id), { updatedAt: nowTs() }).catch(() => { });
+      // nice-to-have: don't block if it fails
+      updateDoc(topicDoc(t.id), { updatedAt: nowTs() }).catch(() => {});
 
       closeModal();
     } catch (e) {
@@ -656,13 +649,13 @@ async function deleteRow(row) {
 
   try {
     await deleteDoc(doc(db, "topics", t.id, "rows", row.id));
-    updateDoc(topicDoc(t.id), { updatedAt: nowTs() }).catch(() => { });
+    updateDoc(topicDoc(t.id), { updatedAt: nowTs() }).catch(() => {});
   } catch (e) {
     toast(rowsMsg, e.message);
   }
 }
 
-// ------------------ Sharing (Owner only) ------------------
+// ------------------ Sharing (simple UI) ------------------
 async function openShareModal() {
   const t = state.currentTopic;
   if (!t) return;
@@ -677,7 +670,6 @@ async function openShareModal() {
   body.className = "grid";
   body.innerHTML = `
     <div class="muted small">Share by <b>User ID</b>. The other user must have created an account.</div>
-
     <div class="row wrap">
       <input id="shUserId" placeholder="User ID (example: ramesh01)" />
       <select id="shRole" class="select" style="width:180px">
@@ -686,18 +678,15 @@ async function openShareModal() {
       </select>
       <button id="shAdd" class="btn primary">Share</button>
     </div>
-
     <div>
       <div class="h2" style="margin-top:6px;">Shared with</div>
       <div id="shList" class="list"></div>
     </div>
-
     <p id="shMsg" class="msg"></p>
   `;
 
   const shUserId = body.querySelector("#shUserId");
   const shRole = body.querySelector("#shRole");
-  const shAdd = body.querySelector("#shAdd");
   const shList = body.querySelector("#shList");
   const shMsg = body.querySelector("#shMsg");
 
@@ -717,46 +706,12 @@ async function openShareModal() {
           <div class="topicName">${esc(s.userId || "")}</div>
           <div class="chipRow"><span class="chip">${esc(s.role || "edit")}</span></div>
         </div>
-        <div class="row wrap">
-          <button class="btn ghost rmBtn">Remove</button>
-        </div>
       `;
-
-      item.querySelector(".rmBtn").addEventListener("click", async () => {
-        try {
-          await removeShare(s.userId);
-          toast(shMsg, "Removed.", true);
-        } catch (e) {
-          toast(shMsg, e.message);
-        }
-      });
-
       shList.appendChild(item);
     }
   }
 
-  async function removeShare(userId) {
-    const key = (userId || "").toLowerCase();
-    const nextShared = (t.sharedWith || []).filter(x => (x.userId || "").toLowerCase() !== key);
-
-    const allowed = new Set(t.allowedUids || []);
-    const removed = (t.sharedWith || []).find(x => (x.userId || "").toLowerCase() === key);
-    if (removed?.uid) allowed.delete(removed.uid);
-    allowed.add(t.ownerUid);
-
-    await updateDoc(topicDoc(t.id), {
-      sharedWith: nextShared,
-      allowedUids: Array.from(allowed),
-      updatedAt: nowTs()
-    });
-
-    const snap = await getDoc(topicDoc(t.id));
-    state.currentTopic = { id: snap.id, ...snap.data() };
-    Object.assign(t, state.currentTopic);
-    renderList();
-  }
-
-  shAdd.addEventListener("click", async () => {
+  body.querySelector("#shAdd").addEventListener("click", async () => {
     toast(shMsg, "");
     const userId = shUserId.value.trim();
     if (!userId) return toast(shMsg, "Enter User ID.");
