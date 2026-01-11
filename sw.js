@@ -1,5 +1,5 @@
 // Simple service worker (static cache)
-const CACHE = "topicslog-v3-dark-zen-1";
+const CACHE = "topicslog-v4-dark-zen-1";
 const ASSETS = [
   "./",
   "./index.html",
