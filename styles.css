@@ -72,7 +72,10 @@ input,select{
   color:var(--text);
   outline:none;
 }
-input:focus,select:focus{border-color:rgba(106,169,255,.5); box-shadow:0 0 0 4px rgba(106,169,255,.14)}
+input:focus,select:focus{
+  border-color:rgba(106,169,255,.5);
+  box-shadow:0 0 0 4px rgba(106,169,255,.14)
+}
 .search{min-width:240px}
 
 .btn{
@@ -143,7 +146,13 @@ input:focus,select:focus{border-color:rgba(106,169,255,.5); box-shadow:0 0 0 4px
 .tableWrap{overflow:auto; border-radius:var(--r); border:1px solid rgba(255,255,255,.10)}
 table{width:100%; border-collapse:collapse; min-width:720px}
 th,td{padding:10px 10px; border-bottom:1px solid rgba(255,255,255,.08); vertical-align:top}
-th{text-align:left; font-size:12px; color:rgba(231,238,247,.78); background:rgba(255,255,255,.03); position:sticky; top:0}
+th{
+  text-align:left;
+  font-size:12px;
+  color:rgba(231,238,247,.78);
+  background:rgba(255,255,255,.03);
+  position:sticky; top:0
+}
 .cellActions{display:flex; gap:6px}
 .iconMini{
   border:1px solid rgba(255,255,255,.12);
@@ -161,7 +170,13 @@ th{text-align:left; font-size:12px; color:rgba(231,238,247,.78); background:rgba
   background:rgba(255,255,255,.04);
   padding:12px;
 }
-.rowCardHeader{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px}
+.rowCardHeader{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  margin-bottom:10px
+}
 .kv{display:grid; grid-template-columns:180px 1fr; gap:10px 14px}
 .k{color:var(--muted); font-size:12px}
 
@@ -195,7 +210,9 @@ th{text-align:left; font-size:12px; color:rgba(231,238,247,.78); background:rgba
 .foot{margin-top:14px}
 
 /* Quill dark tweaks */
-.ql-toolbar.ql-snow, .ql-container.ql-snow{border-color:rgba(255,255,255,.12)!important}
+.ql-toolbar.ql-snow, .ql-container.ql-snow{
+  border-color:rgba(255,255,255,.12)!important
+}
 .ql-toolbar.ql-snow{
   background:rgba(255,255,255,.04);
   border-top-left-radius:14px;
@@ -211,7 +228,22 @@ th{text-align:left; font-size:12px; color:rgba(231,238,247,.78); background:rgba
 .ql-snow .ql-stroke{stroke:rgba(231,238,247,.75)!important}
 .ql-snow .ql-fill{fill:rgba(231,238,247,.75)!important}
 .ql-snow .ql-picker{color:rgba(231,238,247,.85)!important}
-/* Fix: ensure modal buttons stay above editor layers */
-.modalBody { position: relative; }
-.modal .btn, .modal .iconBtn { position: relative; z-index: 9999; }
-.ql-toolbar, .ql-container { position: relative; z-index: 1; }
+
+/* --- IMPORTANT FIX: Create row button not clickable (Quill overlay) --- */
+.modalBody{ position: relative; }
+
+/* Footer stays above editor and remains clickable */
+.modalFooter{
+  position: sticky;
+  bottom: 0;
+  z-index: 9999;
+  background: rgba(17,23,31,.96);
+  padding-top: 12px;
+  margin-top: 10px;
+}
+
+/* Prevent editor from covering footer */
+#rNotes .ql-container{
+  max-height: 220px;
+  overflow: auto;
+}
